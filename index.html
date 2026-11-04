@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b1220">
+<link rel="shortcut icon" href="favicon.png" type="image/x-icon">
+<title>Entreguei App</title>
+<style>
+
+:root{--bg:#0b1220;--card:#111c2e;--text:#edf2f7;--muted:#91a0b5;--line:#263449;--green:#22c55e;--green-dark:#4ade80;--green-soft:#123624;--red:#f87171;--shadow:0 10px 28px rgba(0,0,0,.22)}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#142238 0%,#0b1220 52%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;min-height:100vh}
+button,input,select{font:inherit}button{cursor:pointer}
+.app{max-width:720px;margin:0 auto;min-height:100vh;padding:22px 16px 100px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:11px}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#22c55e,#15803d);display:grid;place-items:center;color:#fff;font-size:22px;box-shadow:0 7px 20px rgba(34,197,94,.2)}
+h1{font-size:20px;margin:0;letter-spacing:-.5px}header p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.date-wrap{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px}
+.date-wrap input{width:145px;border:1px solid var(--line);border-radius:10px;padding:8px;background:#172338;color:var(--text);color-scheme:dark}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.stat{background:linear-gradient(145deg,#15243a,#111c2e);padding:17px;border:1px solid #293b53;border-radius:17px;box-shadow:var(--shadow)}
+.stat small{color:var(--muted);font-size:12px}.stat strong{display:block;font-size:27px;letter-spacing:-1px;margin-top:5px}.stat.money strong{color:var(--green-dark)}
+.week-track{margin-bottom:18px}.week-track h2{font-size:13px;margin:0 0 10px;color:#f3f7fc}
+.week-days{display:flex;gap:8px;overflow-x:auto;padding:2px 1px 8px;scroll-snap-type:x proximity;scrollbar-color:#34445b transparent}
+.week-day{flex:1 0 78px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border:1px solid var(--line);border-radius:12px;background:#111c2e;color:var(--muted);scroll-snap-align:start}
+.week-day.active{border-color:#1d5135;background:#123624;color:var(--green-dark)}
+.week-day-name{font-size:10px;text-transform:uppercase;font-weight:700}
+.week-day-date{font-size:16px;font-weight:750;color:var(--text)}
+.week-day.active .week-day-date{color:var(--green-dark)}
+.week-day-total{font-size:10px;white-space:nowrap;color:inherit}
+.card{background:rgba(17,28,46,.94);border:1px solid var(--line);border-radius:17px;padding:17px;margin-bottom:15px;box-shadow:var(--shadow)}
+.card h2{font-size:15px;margin:0 0 14px;color:#f3f7fc}
+label{display:block;font-size:12px;font-weight:650;color:#b5c1d1;margin:0 0 7px}
+select,input[type=text],input[type=number]{width:100%;padding:12px 13px;border:1px solid #34445b;border-radius:11px;background:#0d1727;color:var(--text);outline:none}
+select:focus,input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.12)}
+input[type=checkbox]{appearance:none;position:relative;flex:0 0 44px;width:44px;height:24px;margin:0;border:1px solid #34445b;border-radius:999px;background:#202e43;cursor:pointer;transition:background .2s,border-color .2s}
+input[type=checkbox]::before{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--text);transition:transform .2s}
+input[type=checkbox]:checked{border-color:var(--green);background:linear-gradient(135deg,#22c55e,#16a34a)}
+input[type=checkbox]:checked::before{transform:translateX(20px)}
+input[type=checkbox]:focus{box-shadow:none}
+input[type=checkbox]:focus-visible{outline:3px solid rgba(34,197,94,.35);outline-offset:3px}
+select option{background:#111c2e;color:var(--text)}
+.toggle-label{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer}
+.field{margin-bottom:13px}
+.selected-value{display:flex;justify-content:space-between;align-items:center;background:#0d1727;border:1px solid var(--line);padding:11px 13px;border-radius:11px;margin:12px 0 14px;font-size:13px;color:var(--muted)}
+.selected-value strong{font-size:16px;color:var(--green-dark)}
+.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:700}
+.btn-primary{background:linear-gradient(135deg,#22c55e,#16a34a);color:#05210f;width:100%;box-shadow:0 6px 16px rgba(34,197,94,.13)}.btn-primary:hover{filter:brightness(1.08)}
+.btn-secondary{background:#202e43;color:#d7e0ec;border:1px solid #304159}.btn-danger{background:#3b2028;color:#fca5a5}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.section-head h2{margin:0}
+.delivery{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);gap:10px}
+.delivery:last-child{border-bottom:0;padding-bottom:0}.delivery-name{font-size:14px;font-weight:700;color:#edf2f7}.delivery-time{font-size:11px;color:var(--muted);margin-top:3px}
+.delivery-right{display:flex;align-items:center;gap:10px}.amount{font-weight:750;color:var(--green-dark);white-space:nowrap}
+.icon-btn{border:1px solid #34445b;background:#1b293d;color:#aebbd0;width:31px;height:31px;border-radius:9px;font-size:16px}
+.empty{text-align:center;padding:25px 10px;color:var(--muted);font-size:13px;line-height:1.7}
+.tabs{position:fixed;bottom:0;left:0;right:0;background:rgba(11,18,32,.94);backdrop-filter:blur(14px);border-top:1px solid #263449;display:flex;justify-content:center;gap:10px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:5}
+.tab{border:1px solid transparent;background:transparent;color:#91a0b5;padding:9px 25px;border-radius:12px;font-weight:700;font-size:13px}.tab.active{background:#123624;color:#4ade80;border-color:#1d5135}
+.hidden{display:none!important}
+.neighborhood{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);gap:12px}
+.neighborhood:last-child{border:0}.neighborhood strong{font-size:14px;color:#edf2f7}.neighborhood small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.actions{display:flex;gap:6px}.actions button{border:1px solid #34445b;border-radius:8px;padding:7px 9px;background:#1b293d;color:#c1ccda}
+.hint{font-size:11px;color:var(--muted);line-height:1.5;margin:12px 2px}
+.toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:#e5f7eb;color:#14532d;padding:11px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:10;box-shadow:0 8px 25px rgba(0,0,0,.3)}.toast.show{opacity:1}
+.lucide-icon{width:18px;height:18px;stroke-width:2;vertical-align:middle;flex-shrink:0}
+.logo .lucide-icon{width:23px;height:23px}
+.icon-heading{display:flex;align-items:center;gap:8px}
+.btn,.tab,.actions button,.icon-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.actions button{width:34px;height:34px;padding:0}
+.icon-btn{width:34px;height:34px}
+.tab{white-space:nowrap}
+@media(max-width:420px){.app{padding:17px 12px 95px}.stat{padding:14px}.stat strong{font-size:23px}.date-wrap{display:block}.date-wrap input{display:block;width:135px;margin-top:4px}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><div class="logo"><img style="width: 44px;" src="/favicon.png" alt="brand logo"></div><div><h1>Entreguei App</h1><p>Ganhos, entrega por entrega</p></div></div>
+    <div class="date-wrap"><input style="max-width: 130px; padding: 1rem;" id="selectedDate" type="date"></div>
+  </header>
+
+  <section id="deliveriesTab">
+    <div class="week-track">
+      <h2>Ganhos da semana</h2>
+      <div class="week-days" id="weekDays" aria-label="Selecione um dia da semana"></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><small>Entregas realizadas</small><strong id="totalCount">0</strong></div>
+      <div class="stat money"><small>Total recebido</small><strong id="totalMoney">R$ 0,00</strong></div>
+    </div>
+    <div class="card">
+      <h2 class="icon-heading"><i class="lucide-icon" data-lucide="package-plus" aria-hidden="true"></i> Registrar entrega</h2>
+      <div class="field"><label for="neighborhoodSelect">Bairro da entrega</label><select id="neighborhoodSelect"><option value="">Cadastre um bairro primeiro</option></select></div>
+      <div class="selected-value"><span>Valor desta entrega</span><strong id="deliveryValue">R$ 0,00</strong></div>
+      <button class="btn btn-primary" id="addDelivery"><i class="lucide-icon" data-lucide="plus" aria-hidden="true"></i> Adicionar entrega</button>
+    </div>
+    <div class="card">
+      <div class="section-head"><h2>Entregas do dia</h2><button class="btn btn-secondary" id="clearDay" style="padding:7px 10px;font-size:11px"><i class="lucide-icon" data-lucide="trash-2" aria-hidden="true"></i> Limpar dia</button></div>
+      <div id="deliveryList"></div>
+    </div>
+  </section>
+
+  <section id="neighborhoodsTab" class="hidden">
+    <div class="card">
+      <h2>Valor da diária</h2>
+      <div class="field"><label for="dailyRate">Valor da diária (R$)</label><input id="dailyRate" type="number" min="0"
+          step="0.01" placeholder="Ex.: 50,00"></div>
+      <label class="toggle-label"><input id="includeDailyRate" type="checkbox"> Somar a diária ao total recebido</label>
+      <p class="hint">Quando ativada, a diária é somada uma vez ao total da data selecionada na tela Entregas.</p>
+    </div>
+    <div class="card">
+      <h2 id="formTitle" class="icon-heading"><i class="lucide-icon" data-lucide="map-pin-plus" aria-hidden="true"></i> Cadastrar bairro</h2>
+      <form id="neighborhoodForm">
+        <div class="field"><label for="neighborhoodName">Nome do bairro</label><input id="neighborhoodName" type="text" maxlength="60" placeholder="Ex.: Centro" required></div>
+        <div class="field"><label for="neighborhoodPrice">Valor por entrega (R$)</label><input id="neighborhoodPrice" type="number" min="0.01" step="0.01" placeholder="Ex.: 8,00" required></div>
+        <button class="btn btn-primary" id="saveNeighborhood" type="submit">Cadastrar bairro</button>
+        <button class="btn btn-secondary hidden" id="cancelEdit" type="button" style="width:100%;margin-top:8px"><i class="lucide-icon" data-lucide="x" aria-hidden="true"></i> Cancelar edição</button>
+      </form>
+    </div>
+    
+    <div class="card">
+      <div class="section-head"><h2>Bairros cadastrados</h2><span id="neighborhoodCount" style="font-size:11px;color:var(--muted)">0 bairros</span></div>
+      <div id="neighborhoodList"></div>
+    </div>
+    <p class="hint">Os dados ficam salvos neste navegador, neste dispositivo. Evite limpar os dados do navegador sem antes exportar um backup.</p>
+    <div class="card">
+      <h2 class="icon-heading"><i class="lucide-icon" data-lucide="hard-drive-download" aria-hidden="true"></i> Backup dos dados</h2>
+      <div class="toolbar" style="display: flex; gap: 1rem;">
+        <button style="width: 100%;" class="btn btn-secondary" id="exportData"><i class="lucide-icon" data-lucide="download" aria-hidden="true"></i> Exportar </button>
+        <button style="width: 100%;" class="btn btn-secondary" id="importButton"><i class="lucide-icon" data-lucide="upload" aria-hidden="true"></i> Importar </button>
+        <input id="importFile" type="file" accept="application/json,.json" class="hidden">
+      </div>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="deliveriesTab"><i class="lucide-icon" data-lucide="bike" aria-hidden="true"></i> Entregas</button>
+  <button class="tab" data-tab="neighborhoodsTab"><i class="lucide-icon" data-lucide="map-pin" aria-hidden="true"></i> Bairros</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+(() => {
+  const STORAGE_KEY = 'controle-entregas-v1';
+  const $ = id => document.getElementById(id);
+  const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const dateFromKey = key => {
+    const [year, month, day] = key.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+  const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  const money = value => Number(value || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const makeId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+  let data = { neighborhoods: [], deliveries: [], dailyRate: 0, includeDailyRate: false };
+  let editingId = null;
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && Array.isArray(saved.neighborhoods) && Array.isArray(saved.deliveries)) {
+      data = {
+        ...saved,
+        dailyRate: Number.isFinite(Number(saved.dailyRate)) && Number(saved.dailyRate) >= 0 ? Number(saved.dailyRate) : 0,
+        includeDailyRate: saved.includeDailyRate === true
+      };
+    }
+  } catch(e) {}
+  $('selectedDate').value = today();
+
+  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); render(); }
+  function toast(message) {
+    $('toast').textContent = message; $('toast').classList.add('show');
+    setTimeout(() => $('toast').classList.remove('show'), 2200);
+  }
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function currentDeliveries() {
+    return data.deliveries.filter(d => d.date === $('selectedDate').value)
+      .sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+  function render() {
+    const neighborhoods = [...data.neighborhoods].sort((a,b) => a.name.localeCompare(b.name,'pt-BR'));
+    const select = $('neighborhoodSelect');
+    const previous = select.value;
+    select.innerHTML = neighborhoods.length
+      ? '<option value="">Selecione um bairro</option>' + neighborhoods.map(n => `<option value="${escapeHtml(n.id)}">${escapeHtml(n.name)} — ${money(n.price)}</option>`).join('')
+      : '<option value="">Cadastre um bairro primeiro</option>';
+    if (neighborhoods.some(n => n.id === previous)) select.value = previous;
+    updateSelectedValue();
+
+    const selectedDate = $('selectedDate').value;
+    const weekStart = dateFromKey(selectedDate);
+    weekStart.setDate(weekStart.getDate() - (weekStart.getDay() + 6) % 7);
+    const weeklyTotals = new Map();
+    data.deliveries.forEach(delivery => {
+      weeklyTotals.set(delivery.date, (weeklyTotals.get(delivery.date) || 0) + Number(delivery.price || 0));
+    });
+    $('weekDays').innerHTML = Array.from({length:7}, (_, index) => {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + index);
+      const key = dateKey(date);
+      const total = (weeklyTotals.get(key) || 0) + (data.includeDailyRate ? data.dailyRate : 0);
+      const weekday = date.toLocaleDateString('pt-BR', {weekday:'short'}).replace('.', '');
+      return `<button type="button" class="week-day${key === selectedDate ? ' active' : ''}" data-week-date="${key}" aria-pressed="${key === selectedDate}" aria-label="${weekday}, ${date.toLocaleDateString('pt-BR')}: ${money(total)}">
+        <span class="week-day-name">${weekday}</span><span class="week-day-date">${String(date.getDate()).padStart(2,'0')}</span><span class="week-day-total">${money(total)}</span>
+      </button>`;
+    }).join('');
+
+    const deliveries = currentDeliveries();
+    const total = deliveries.reduce((sum,d) => sum + Number(d.price || 0), 0);
+    $('totalCount').textContent = deliveries.length;
+    $('totalMoney').textContent = money(total + (data.includeDailyRate ? data.dailyRate : 0));
+    $('dailyRate').value = data.dailyRate;
+    $('includeDailyRate').checked = data.includeDailyRate;
+    $('deliveryList').innerHTML = deliveries.length ? deliveries.map(d => `
+      <div class="delivery">
+        <div><div class="delivery-name">${escapeHtml(d.neighborhoodName)}</div><div class="delivery-time">${escapeHtml(d.time || '')}</div></div>
+        <div class="delivery-right"><span class="amount">${money(d.price)}</span><button class="icon-btn" title="Excluir entrega" aria-label="Excluir entrega" data-delete-delivery="${escapeHtml(d.id)}"><i class="lucide-icon" data-lucide="trash-2" aria-hidden="true"></i></button></div>
+      </div>`).join('') : '<div class="empty">Nenhuma entrega registrada nesta data.<br>Adicione a primeira entrega acima.</div>';
+
+    $('neighborhoodCount').textContent = `${neighborhoods.length} ${neighborhoods.length === 1 ? 'bairro' : 'bairros'}`;
+    $('neighborhoodList').innerHTML = neighborhoods.length ? neighborhoods.map(n => `
+      <div class="neighborhood">
+        <div><strong>${escapeHtml(n.name)}</strong><small>${money(n.price)} por entrega</small></div>
+        <div class="actions"><button data-edit="${escapeHtml(n.id)}" title="Editar" aria-label="Editar bairro ${escapeHtml(n.name)}"><i class="lucide-icon" data-lucide="pencil" aria-hidden="true"></i></button><button data-delete-neighborhood="${escapeHtml(n.id)}" title="Excluir" aria-label="Excluir bairro ${escapeHtml(n.name)}"><i class="lucide-icon" data-lucide="trash-2" aria-hidden="true"></i></button></div>
+      </div>`).join('') : '<div class="empty">Você ainda não cadastrou nenhum bairro.</div>';
+    if (window.lucide) window.lucide.createIcons();
+  }
+  function updateSelectedValue() {
+    const n = data.neighborhoods.find(item => item.id === $('neighborhoodSelect').value);
+    $('deliveryValue').textContent = n ? money(n.price) : money(0);
+  }
+  $('neighborhoodSelect').addEventListener('change', updateSelectedValue);
+  $('selectedDate').addEventListener('change', render);
+  $('weekDays').addEventListener('click', e => {
+    const day = e.target.closest('[data-week-date]');
+    if (!day) return;
+    $('selectedDate').value = day.dataset.weekDate;
+    render();
+  });
+  $('dailyRate').addEventListener('change', () => {
+    const dailyRate = Number($('dailyRate').value);
+    if (!Number.isFinite(dailyRate) || dailyRate < 0) {
+      $('dailyRate').value = data.dailyRate;
+      return toast('Informe um valor de diária válido.');
+    }
+    data.dailyRate = dailyRate;
+    save();
+  });
+  $('includeDailyRate').addEventListener('change', () => {
+    data.includeDailyRate = $('includeDailyRate').checked;
+    save();
+  });
+
+  $('addDelivery').addEventListener('click', () => {
+    const n = data.neighborhoods.find(item => item.id === $('neighborhoodSelect').value);
+    if (!n) return toast('Selecione ou cadastre um bairro primeiro.');
+    const now = new Date();
+    data.deliveries.push({
+      id: makeId(), neighborhoodId: n.id, neighborhoodName: n.name,
+      price: Number(n.price), date: $('selectedDate').value,
+      time: now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+      createdAt: now.toISOString()
+    });
+    save(); toast('Entrega adicionada!');
+  });
+
+  $('neighborhoodForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('neighborhoodName').value.trim();
+    const price = Number($('neighborhoodPrice').value);
+    if (!name || !Number.isFinite(price) || price <= 0) return toast('Informe um nome e um valor válido.');
+    const duplicate = data.neighborhoods.find(n => n.name.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR') && n.id !== editingId);
+    if (duplicate) return toast('Esse bairro já está cadastrado.');
+    if (editingId) {
+      const n = data.neighborhoods.find(item => item.id === editingId);
+      if (n) { n.name = name; n.price = price; }
+      toast('Bairro atualizado!');
+    } else {
+      data.neighborhoods.push({id:makeId(),name,price});
+      toast('Bairro cadastrado!');
+    }
+    resetForm(); save();
+  });
+  function resetForm() {
+    editingId = null; $('neighborhoodForm').reset();
+    $('formTitle').innerHTML = '<i class="lucide-icon" data-lucide="map-pin-plus" aria-hidden="true"></i> Cadastrar bairro';
+    $('saveNeighborhood').textContent = 'Cadastrar bairro';
+    $('cancelEdit').classList.add('hidden');
+  }
+  $('cancelEdit').addEventListener('click', resetForm);
+
+  $('neighborhoodList').addEventListener('click', e => {
+    const edit = e.target.closest('[data-edit]');
+    const del = e.target.closest('[data-delete-neighborhood]');
+    if (edit) {
+      const n = data.neighborhoods.find(item => item.id === edit.dataset.edit);
+      if (!n) return;
+      editingId = n.id; $('neighborhoodName').value = n.name; $('neighborhoodPrice').value = n.price;
+      $('formTitle').innerHTML = '<i class="lucide-icon" data-lucide="map-pin" aria-hidden="true"></i> Editar bairro'; $('saveNeighborhood').textContent = 'Salvar alterações';
+      $('cancelEdit').classList.remove('hidden'); $('neighborhoodName').focus();
+    }
+    if (del) {
+      const n = data.neighborhoods.find(item => item.id === del.dataset.deleteNeighborhood);
+      if (!n || !confirm(`Excluir o bairro "${n.name}"? As entregas já registradas não serão apagadas.`)) return;
+      data.neighborhoods = data.neighborhoods.filter(item => item.id !== n.id);
+      if (editingId === n.id) resetForm();
+      save(); toast('Bairro excluído.');
+    }
+  });
+  $('deliveryList').addEventListener('click', e => {
+    const btn = e.target.closest('[data-delete-delivery]');
+    if (!btn) return;
+    if (!confirm('Excluir esta entrega?')) return;
+    data.deliveries = data.deliveries.filter(d => d.id !== btn.dataset.deleteDelivery);
+    save(); toast('Entrega excluída.');
+  });
+  $('clearDay').addEventListener('click', () => {
+    const date = $('selectedDate').value;
+    const count = data.deliveries.filter(d => d.date === date).length;
+    if (!count) return toast('Não há entregas para limpar nesta data.');
+    if (!confirm(`Apagar as ${count} entregas de ${date.split('-').reverse().join('/')}? Essa ação não pode ser desfeita.`)) return;
+    data.deliveries = data.deliveries.filter(d => d.date !== date);
+    save(); toast('Entregas do dia removidas.');
+  });
+
+  document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    $('deliveriesTab').classList.toggle('hidden', tab.dataset.tab !== 'deliveriesTab');
+    $('neighborhoodsTab').classList.toggle('hidden', tab.dataset.tab !== 'neighborhoodsTab');
+  }));
+
+  $('exportData').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = `backup-entregas-${today()}.json`; a.click();
+    URL.revokeObjectURL(url); toast('Backup exportado!');
+  });
+  $('importButton').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const imported = JSON.parse(await file.text());
+      if (!Array.isArray(imported.neighborhoods) || !Array.isArray(imported.deliveries)) throw new Error();
+      if (!confirm('A importação substituirá os dados atuais. Deseja continuar?')) return;
+      data = {
+        ...imported,
+        dailyRate: Number.isFinite(Number(imported.dailyRate)) && Number(imported.dailyRate) >= 0 ? Number(imported.dailyRate) : 0,
+        includeDailyRate: imported.includeDailyRate === true
+      };
+      save(); toast('Backup importado!');
+    } catch(err) { alert('Não foi possível importar. Verifique se o arquivo é um backup válido.'); }
+    finally { e.target.value = ''; }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
