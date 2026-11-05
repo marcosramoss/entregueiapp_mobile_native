@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sliding Counter - Sem Bugs de Clique Rápido</title>
+  
+  <style>
+    /* Estilos Globais e Dark Mode */
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #111827;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #ffffff;
+      user-select: none; /* Evita selecionar o texto ao clicar rápido */
+    }
+
+    /* Contentor do Contador */
+    .counter-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 2.5rem;
+      background-color: #1f2937;
+      border-radius: 1rem;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Caixa que envolve todos os dígitos */
+    .counter-display {
+      display: flex;
+      overflow: hidden;
+      background-color: #111827;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      border: 1px solid #374151;
+    }
+
+    /* Contentor individual de cada slot de dígito */
+    .digit-container {
+      position: relative;
+      height: 40px;
+      width: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.875rem;
+      font-weight: 700;
+    }
+
+    /* O elemento de texto que será animado */
+    .digit {
+      position: absolute;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Estados de transição controlados por classes */
+    .digit.exit-up {
+      transform: translateY(-30px);
+      opacity: 0;
+    }
+    .digit.exit-down {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+    .digit.initial-up {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+    .digit.initial-down {
+      transform: translateY(-30px);
+      opacity: 0;
+    }
+
+    /* Contentor dos Botões */
+    .button-group {
+      display: flex;
+      gap: 1rem;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      color: #ffffff;
+    }
+
+    .btn-decrement { background-color: #dc2626; }
+    .btn-decrement:hover { background-color: #b91c1c; }
+
+    .btn-increment { background-color: #16a34a; }
+    .btn-increment:hover { background-color: #15803d; }
+  </style>
+</head>
+<body>
+
+  <div class="counter-card">
+    <div class="counter-display" id="counterDisplay">
+      <!-- Os dígitos serão injetados aqui -->
+    </div>
+
+    <div class="button-group">
+      <button class="btn-decrement" id="btnDecrement">Decrementar</button>
+      <button class="btn-increment" id="btnIncrement">Incrementar</button>
+    </div>
+  </div>
+
+  <script>
+    let count = 100;
+    const display = document.getElementById("counterDisplay");
+
+    function updateCounter(newValue, direction = "up") {
+      const newDigitsStr = String(newValue).split("");
+      const currentContainers = display.querySelectorAll(".digit-container");
+      
+      // Se a quantidade de dígitos mudou (ex: de 99 para 100), reconstrói tudo instantaneamente
+      if (currentContainers.length !== newDigitsStr.length) {
+        display.innerHTML = "";
+        newDigitsStr.forEach(digit => {
+          const container = document.createElement("div");
+          container.className = "digit-container";
+          
+          const digitEl = document.createElement("span");
+          digitEl.className = "digit";
+          digitEl.textContent = digit;
+          
+          container.appendChild(digitEl);
+          display.appendChild(container);
+        });
+        return;
+      }
+
+      // Atualiza e anima apenas os dígitos que realmente mudaram
+      newDigitsStr.forEach((newDigit, index) => {
+        const container = currentContainers[index];
+        
+        // CORREÇÃO DO BUG: Remove imediatamente qualquer elemento antigo que ainda esteja a animar para fora
+        const existingDigits = container.querySelectorAll(".digit");
+        if (existingDigits.length > 1) {
+          // Mantém apenas o último elemento que entrou e remove os que estavam a sair
+          for (let i = 0; i < existingDigits.length - 1; i++) {
+            existingDigits[i].remove();
+          }
+        }
+
+        // Captura o dígito que está atualmente visível no centro
+        const oldDigitEl = container.querySelector(".digit");
+
+        // Se o dígito visível já tem o mesmo valor que o novo, não faz nada
+        if (oldDigitEl.textContent === newDigit) return;
+
+        // 1. Aplica o efeito de saída no número antigo
+        oldDigitEl.classList.add(direction === "up" ? "exit-up" : "exit-down");
+        
+        // Remove após o término da transição de forma segura
+        setTimeout(() => {
+          if (oldDigitEl.parentNode === container) {
+            oldDigitEl.remove();
+          }
+        }, 300);
+
+        // 2. Cria o novo número posicionado fora da caixa visível
+        const newDigitEl = document.createElement("span");
+        newDigitEl.className = `digit ${direction === "up" ? "initial-up" : "initial-down"}`;
+        newDigitEl.textContent = newDigit;
+        container.appendChild(newDigitEl);
+
+        // 3. Ativa a transição de entrada no frame seguinte
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            newDigitEl.classList.remove("initial-up", "initial-down");
+          });
+        });
+      });
+    }
+
+    // Ouvintes de eventos para os cliques dos botões
+    document.getElementById("btnIncrement").addEventListener("click", () => {
+      count++;
+      updateCounter(count, "up");
+    });
+
+    document.getElementById("btnDecrement").addEventListener("click", () => {
+      count--;
+      updateCounter(count, "down");
+    });
+
+    // Inicializa o ecrã com o valor padrão (100)
+    updateCounter(count);
+  </script>
+
+</body>
+</html>
