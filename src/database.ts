@@ -2,7 +2,14 @@ import {
   openDatabaseAsync,
   type SQLiteDatabase,
 } from 'expo-sqlite';
-import type { AppSettings, BackupData, Delivery, Neighborhood } from './domain';
+import type {
+  AppSettings,
+  BackupData,
+  Delivery,
+  Neighborhood,
+  WorkProfile,
+  WorkShift,
+} from './domain';
 
 type NeighborhoodRow = {
   id: string;
@@ -18,6 +25,21 @@ type DeliveryRow = {
   date_key: string;
   time: string;
   created_at: string;
+  shift_id: string | null;
+};
+
+type WorkShiftRow = {
+  id: string;
+  date_key: string;
+  profile_id: string;
+  profile_name: string;
+  daily_rate_cents: number;
+};
+
+type WorkProfileRow = {
+  id: string;
+  name: string;
+  daily_rate_cents: number;
 };
 
 type SettingsRow = {
@@ -69,6 +91,34 @@ async function database(): Promise<SQLiteDatabase> {
           `);
         });
       }
+      if ((version?.user_version ?? 0) < 3) {
+        await db.withTransactionAsync(async () => {
+          await db.execAsync(`
+            ALTER TABLE deliveries ADD COLUMN shift_id TEXT;
+            CREATE INDEX IF NOT EXISTS deliveries_shift ON deliveries(shift_id);
+            CREATE TABLE IF NOT EXISTS work_profiles (
+              id TEXT PRIMARY KEY NOT NULL,
+              name TEXT NOT NULL,
+              daily_rate_cents INTEGER NOT NULL CHECK (daily_rate_cents >= 0)
+            );
+            CREATE TABLE IF NOT EXISTS work_profile_neighborhood_rates (
+              profile_id TEXT NOT NULL,
+              neighborhood_id TEXT NOT NULL,
+              price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
+              PRIMARY KEY (profile_id, neighborhood_id)
+            );
+            CREATE TABLE IF NOT EXISTS work_shifts (
+              id TEXT PRIMARY KEY NOT NULL,
+              date_key TEXT NOT NULL,
+              profile_id TEXT NOT NULL,
+              profile_name TEXT NOT NULL,
+              daily_rate_cents INTEGER NOT NULL CHECK (daily_rate_cents >= 0)
+            );
+            CREATE INDEX IF NOT EXISTS work_shifts_date ON work_shifts(date_key);
+            PRAGMA user_version = 3;
+          `);
+        });
+      }
       await db.runAsync(
         'INSERT OR IGNORE INTO settings (id, daily_rate_cents, include_daily_rate) VALUES (1, 0, 0)',
       );
@@ -94,6 +144,7 @@ function mapDelivery(row: DeliveryRow): Delivery {
     date: row.date_key,
     time: row.time,
     createdAt: row.created_at,
+    shiftId: row.shift_id,
   };
 }
 
@@ -123,6 +174,40 @@ export async function getDailyRateDates(startDate: string, endDate: string): Pro
   return rows.map((row) => row.date_key);
 }
 
+export async function getWorkProfiles(): Promise<WorkProfile[]> {
+  const db = await database();
+  const [profiles, rates] = await Promise.all([
+    db.getAllAsync<WorkProfileRow>('SELECT * FROM work_profiles ORDER BY name COLLATE NOCASE'),
+    db.getAllAsync<{ profile_id: string; neighborhood_id: string; price_cents: number }>(
+      'SELECT * FROM work_profile_neighborhood_rates',
+    ),
+  ]);
+  return profiles.map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    dailyRateCents: profile.daily_rate_cents,
+    neighborhoodRates: rates
+      .filter((rate) => rate.profile_id === profile.id)
+      .map((rate) => ({ neighborhoodId: rate.neighborhood_id, priceCents: rate.price_cents })),
+  }));
+}
+
+export async function getWorkShifts(startDate: string, endDate: string): Promise<WorkShift[]> {
+  const db = await database();
+  const rows = await db.getAllAsync<WorkShiftRow>(
+    'SELECT * FROM work_shifts WHERE date_key BETWEEN ? AND ? ORDER BY id',
+    startDate,
+    endDate,
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    date: row.date_key,
+    profileId: row.profile_id,
+    profileName: row.profile_name,
+    dailyRateCents: row.daily_rate_cents,
+  }));
+}
+
 export async function getSettings(): Promise<AppSettings> {
   const db = await database();
   const row = await db.getFirstAsync<SettingsRow>('SELECT * FROM settings WHERE id = 1');
@@ -134,13 +219,15 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function getBackupData(): Promise<BackupData> {
-  const [neighborhoods, deliveries, dailyRateDates, settings] = await Promise.all([
+  const [neighborhoods, deliveries, dailyRateDates, workProfiles, workShifts, settings] = await Promise.all([
     getNeighborhoods(),
     getDeliveries('0000-01-01', '9999-12-31'),
     getDailyRateDates('0000-01-01', '9999-12-31'),
+    getWorkProfiles(),
+    getWorkShifts('0000-01-01', '9999-12-31'),
     getSettings(),
   ]);
-  return { neighborhoods, deliveries, dailyRateDates, settings };
+  return { neighborhoods, deliveries, dailyRateDates, workProfiles, workShifts, settings };
 }
 
 export async function saveNeighborhood(neighborhood: Neighborhood): Promise<void> {
@@ -163,8 +250,8 @@ export async function saveDelivery(delivery: Delivery): Promise<void> {
   const db = await database();
   await db.runAsync(
     `INSERT INTO deliveries
-      (id, neighborhood_id, neighborhood_name, price_cents, date_key, time, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (id, neighborhood_id, neighborhood_name, price_cents, date_key, time, created_at, shift_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     delivery.id,
     delivery.neighborhoodId,
     delivery.neighborhoodName,
@@ -172,6 +259,50 @@ export async function saveDelivery(delivery: Delivery): Promise<void> {
     delivery.date,
     delivery.time,
     delivery.createdAt,
+    delivery.shiftId ?? null,
+  );
+}
+
+export async function saveWorkProfile(profile: WorkProfile): Promise<void> {
+  const db = await database();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `INSERT INTO work_profiles (id, name, daily_rate_cents) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, daily_rate_cents = excluded.daily_rate_cents`,
+      profile.id,
+      profile.name,
+      profile.dailyRateCents,
+    );
+    await db.runAsync('DELETE FROM work_profile_neighborhood_rates WHERE profile_id = ?', profile.id);
+    for (const rate of profile.neighborhoodRates) {
+      await db.runAsync(
+        'INSERT INTO work_profile_neighborhood_rates (profile_id, neighborhood_id, price_cents) VALUES (?, ?, ?)',
+        profile.id,
+        rate.neighborhoodId,
+        rate.priceCents,
+      );
+    }
+  });
+}
+
+export async function deleteWorkProfile(id: string): Promise<void> {
+  const db = await database();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM work_profile_neighborhood_rates WHERE profile_id = ?', id);
+    await db.runAsync('DELETE FROM work_profiles WHERE id = ?', id);
+  });
+}
+
+export async function saveWorkShift(shift: WorkShift): Promise<void> {
+  const db = await database();
+  await db.runAsync(
+    `INSERT INTO work_shifts (id, date_key, profile_id, profile_name, daily_rate_cents)
+     VALUES (?, ?, ?, ?, ?)`,
+    shift.id,
+    shift.date,
+    shift.profileId,
+    shift.profileName,
+    shift.dailyRateCents,
   );
 }
 
@@ -209,6 +340,9 @@ export async function replaceBackupData(data: BackupData): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM deliveries');
     await db.runAsync('DELETE FROM daily_rate_dates');
+    await db.runAsync('DELETE FROM work_shifts');
+    await db.runAsync('DELETE FROM work_profile_neighborhood_rates');
+    await db.runAsync('DELETE FROM work_profiles');
     await db.runAsync('DELETE FROM neighborhoods');
     for (const neighborhood of data.neighborhoods) {
       await db.runAsync(
@@ -221,8 +355,8 @@ export async function replaceBackupData(data: BackupData): Promise<void> {
     for (const delivery of data.deliveries) {
       await db.runAsync(
         `INSERT INTO deliveries
-          (id, neighborhood_id, neighborhood_name, price_cents, date_key, time, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (id, neighborhood_id, neighborhood_name, price_cents, date_key, time, created_at, shift_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         delivery.id,
         delivery.neighborhoodId,
         delivery.neighborhoodName,
@@ -230,10 +364,37 @@ export async function replaceBackupData(data: BackupData): Promise<void> {
         delivery.date,
         delivery.time,
         delivery.createdAt,
+        delivery.shiftId ?? null,
       );
     }
     for (const date of data.dailyRateDates) {
       await db.runAsync('INSERT INTO daily_rate_dates (date_key) VALUES (?)', date);
+    }
+    for (const profile of data.workProfiles) {
+      await db.runAsync(
+        'INSERT INTO work_profiles (id, name, daily_rate_cents) VALUES (?, ?, ?)',
+        profile.id,
+        profile.name,
+        profile.dailyRateCents,
+      );
+      for (const rate of profile.neighborhoodRates) {
+        await db.runAsync(
+          'INSERT INTO work_profile_neighborhood_rates (profile_id, neighborhood_id, price_cents) VALUES (?, ?, ?)',
+          profile.id,
+          rate.neighborhoodId,
+          rate.priceCents,
+        );
+      }
+    }
+    for (const shift of data.workShifts) {
+      await db.runAsync(
+        'INSERT INTO work_shifts (id, date_key, profile_id, profile_name, daily_rate_cents) VALUES (?, ?, ?, ?, ?)',
+        shift.id,
+        shift.date,
+        shift.profileId,
+        shift.profileName,
+        shift.dailyRateCents,
+      );
     }
     await db.runAsync(
       'UPDATE settings SET daily_rate_cents = ?, include_daily_rate = ? WHERE id = 1',

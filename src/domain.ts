@@ -12,6 +12,22 @@ export type Delivery = {
   date: string;
   time: string;
   createdAt: string;
+  shiftId?: string | null;
+};
+
+export type WorkProfile = {
+  id: string;
+  name: string;
+  dailyRateCents: number;
+  neighborhoodRates: { neighborhoodId: string; priceCents: number }[];
+};
+
+export type WorkShift = {
+  id: string;
+  date: string;
+  profileId: string;
+  profileName: string;
+  dailyRateCents: number;
 };
 
 export type AppSettings = {
@@ -23,6 +39,8 @@ export type BackupData = {
   neighborhoods: Neighborhood[];
   deliveries: Delivery[];
   dailyRateDates: string[];
+  workProfiles: WorkProfile[];
+  workShifts: WorkShift[];
   settings: AppSettings;
 };
 
@@ -95,6 +113,13 @@ function moneyToCents(value: unknown, field: string, allowZero: boolean): number
   return Math.round(amount * 100);
 }
 
+function storedCents(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`Valor inválido no campo "${field}".`);
+  }
+  return value;
+}
+
 export function parseLegacyBackup(json: string): BackupData {
   const parsed: unknown = JSON.parse(json);
   if (!isRecord(parsed) || !Array.isArray(parsed.neighborhoods) || !Array.isArray(parsed.deliveries)) {
@@ -151,6 +176,9 @@ export function parseLegacyBackup(json: string): BackupData {
       date,
       time: typeof item.time === 'string' ? item.time : '',
       createdAt: typeof item.createdAt === 'string' ? item.createdAt : `${date}T00:00:00.000Z`,
+      shiftId: item.shiftId === undefined || item.shiftId === null
+        ? null
+        : requiredText(item.shiftId, `entregas[${index}].shiftId`),
     };
   });
 
@@ -179,10 +207,68 @@ export function parseLegacyBackup(json: string): BackupData {
     throw new Error('A lista de dias com diária contém datas duplicadas.');
   }
 
+  if (parsed.workProfiles !== undefined && !Array.isArray(parsed.workProfiles)) {
+    throw new Error('A lista de perfis freelancer é inválida.');
+  }
+  const workProfileIds = new Set<string>();
+  const workProfiles = (parsed.workProfiles === undefined ? [] : parsed.workProfiles).map((item, index): WorkProfile => {
+    if (!isRecord(item) || !Array.isArray(item.neighborhoodRates)) {
+      throw new Error(`Perfil freelancer ${index + 1} inválido.`);
+    }
+    const id = requiredText(item.id, `workProfiles[${index}].id`);
+    if (workProfileIds.has(id)) throw new Error(`ID de perfil freelancer duplicado: ${id}.`);
+    workProfileIds.add(id);
+    const rateIds = new Set<string>();
+    const neighborhoodRates = item.neighborhoodRates.map((rate, rateIndex) => {
+      if (!isRecord(rate)) throw new Error(`Valor de entrega inválido no perfil ${index + 1}.`);
+      const neighborhoodId = requiredText(rate.neighborhoodId, `workProfiles[${index}].neighborhoodRates[${rateIndex}].neighborhoodId`);
+      if (rateIds.has(neighborhoodId)) throw new Error(`Bairro duplicado no perfil freelancer ${index + 1}.`);
+      rateIds.add(neighborhoodId);
+      return {
+        neighborhoodId,
+        priceCents: storedCents(rate.priceCents, `workProfiles[${index}].neighborhoodRates[${rateIndex}].priceCents`),
+      };
+    });
+    return {
+      id,
+      name: requiredText(item.name, `workProfiles[${index}].name`),
+      dailyRateCents: storedCents(item.dailyRateCents, `workProfiles[${index}].dailyRateCents`),
+      neighborhoodRates,
+    };
+  });
+
+  if (parsed.workShifts !== undefined && !Array.isArray(parsed.workShifts)) {
+    throw new Error('A lista de turnos freelancer é inválida.');
+  }
+  const workShiftIds = new Set<string>();
+  const workShifts = (parsed.workShifts ?? []).map((item, index): WorkShift => {
+    if (!isRecord(item)) throw new Error(`Turno freelancer ${index + 1} inválido.`);
+    const id = requiredText(item.id, `workShifts[${index}].id`);
+    const date = requiredText(item.date, `workShifts[${index}].date`);
+    const parsedDate = dateFromKey(date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || todayKey(parsedDate) !== date) {
+      throw new Error(`Data inválida no turno freelancer ${index + 1}.`);
+    }
+    if (workShiftIds.has(id)) throw new Error(`ID de turno freelancer duplicado: ${id}.`);
+    workShiftIds.add(id);
+    return {
+      id,
+      date,
+      profileId: requiredText(item.profileId, `workShifts[${index}].profileId`),
+      profileName: requiredText(item.profileName, `workShifts[${index}].profileName`),
+      dailyRateCents: storedCents(item.dailyRateCents, `workShifts[${index}].dailyRateCents`),
+    };
+  });
+  if (deliveries.some((delivery) => delivery.shiftId && !workShiftIds.has(delivery.shiftId))) {
+    throw new Error('Há uma entrega freelancer sem o turno correspondente no backup.');
+  }
+
   return {
     neighborhoods,
     deliveries,
     dailyRateDates,
+    workProfiles,
+    workShifts,
     settings: {
       dailyRateCents,
       includeDailyRate: parsed.includeDailyRate === true,
@@ -205,9 +291,12 @@ export function serializeLegacyBackup(data: BackupData): string {
       date: delivery.date,
       time: delivery.time,
       createdAt: delivery.createdAt,
+      shiftId: delivery.shiftId ?? null,
     })),
     dailyRate: data.settings.dailyRateCents / 100,
     includeDailyRate: data.settings.includeDailyRate,
     dailyRateDates: data.dailyRateDates,
+    workProfiles: data.workProfiles,
+    workShifts: data.workShifts,
   }, null, 2);
 }

@@ -3,7 +3,7 @@
     "name": "Entreguei App",
     "slug": "entreguei-app",
     "scheme": "entreguei",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.entregueiapp",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#1A9B4A",
         "foregroundImage": "./assets/android-icon-foreground.png",

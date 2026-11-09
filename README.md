@@ -59,12 +59,13 @@ O projeto usa módulos nativos e Expo SDK 58; para testar no aparelho, use um de
 - Cadastro, edição e exclusão de bairros e valores por entrega.
 - Registro e exclusão de entregas com data, horário e cópia do nome/valor do bairro.
 - Consulta por data, resumo semanal e diária configurável, ativada individualmente em cada dia trabalhado.
+- Perfis freelancer por local, com diária padrão e valores de entrega por bairro; é possível registrar vários turnos no mesmo dia e ajustar os valores em cada turno/entrega.
 - Acompanhamento de ganhos semanais e mensais com gráfico, totais, médias e detalhamento por dia.
 - Armazenamento SQLite local e backup JSON.
 - Importação do backup JSON exportado pela versão web.
 - Ícones Lucide integrados como componentes nativos, sem depender de carregamento pela internet.
 - Ícone de aplicativo, ícone adaptável do Android e splash screen com a marca Entreguei.
 
-Para transferir dados da versão web, exporte o backup nela e use **Bairros > Importar backup** no app. A importação substitui os dados atuais do aplicativo. Os backups exportados pelo app também preservam quais dias tiveram a diária ativada.
+Para transferir dados da versão web, exporte o backup nela e use **Bairros > Importar backup** no app. A importação substitui os dados atuais do aplicativo. Os backups antigos continuam aceitos; os novos também guardam perfis freelancer, turnos e valores registrados no histórico.
 
 O escopo e os critérios de conclusão estão em [`../plan.md`](../plan.md).

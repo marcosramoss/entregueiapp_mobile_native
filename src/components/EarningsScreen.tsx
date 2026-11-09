@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { getDailyRateDates, getDeliveries, getSettings } from '../database';
+import { getDailyRateDates, getDeliveries, getSettings, getWorkShifts } from '../database';
 import {
   addDays,
   dateFromKey,
@@ -18,7 +18,7 @@ import {
   mondayOfWeek,
   todayKey,
 } from '../domain';
-import type { Delivery } from '../domain';
+import type { Delivery, WorkShift } from '../domain';
 import { useSelectedDate } from '../context/SelectedDateContext';
 
 type Period = 'week' | 'month';
@@ -28,6 +28,7 @@ type DayEarnings = {
   deliveries: Delivery[];
   deliveryTotal: number;
   dailyRate: number;
+  workShifts: WorkShift[];
   total: number;
 };
 
@@ -101,6 +102,7 @@ export default function EarningsScreen() {
   const [period, setPeriod] = useState<Period>('week');
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [dailyRateDates, setDailyRateDates] = useState<string[]>([]);
+  const [workShifts, setWorkShifts] = useState<WorkShift[]>([]);
   const [dailyRateCents, setDailyRateCents] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -111,14 +113,16 @@ export default function EarningsScreen() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [deliveryData, dailyRateDateData, settings] = await Promise.all([
+      const [deliveryData, dailyRateDateData, shiftData, settings] = await Promise.all([
         getDeliveries(startDate, endDate),
         getDailyRateDates(startDate, endDate),
+        getWorkShifts(startDate, endDate),
         getSettings(),
       ]);
       if (!isActive()) return;
       setDeliveries(deliveryData);
       setDailyRateDates(dailyRateDateData);
+      setWorkShifts(shiftData);
       setDailyRateCents(settings.dailyRateCents);
     } catch (error) {
       if (isActive()) setLoadError(errorText(error));
@@ -147,17 +151,20 @@ export default function EarningsScreen() {
     for (let date = startDate; date <= endDate; date = addDays(date, 1)) {
       const dayDeliveries = deliveriesByDate.get(date) ?? [];
       const deliveryTotal = dayDeliveries.reduce((sum, item) => sum + item.priceCents, 0);
-      const dailyRate = dailyRateDates.includes(date) ? dailyRateCents : 0;
+      const dayShifts = workShifts.filter((shift) => shift.date === date);
+      const dailyRate = (dailyRateDates.includes(date) ? dailyRateCents : 0)
+        + dayShifts.reduce((sum, shift) => sum + shift.dailyRateCents, 0);
       result.push({
         date,
         deliveries: dayDeliveries,
         deliveryTotal,
         dailyRate,
+        workShifts: dayShifts,
         total: deliveryTotal + dailyRate,
       });
     }
     return result;
-  }, [dailyRateCents, dailyRateDates, deliveries, endDate, startDate]);
+  }, [dailyRateCents, dailyRateDates, deliveries, endDate, startDate, workShifts]);
 
   const deliveryCount = days.reduce((sum, day) => sum + day.deliveries.length, 0);
   const deliveryTotal = days.reduce((sum, day) => sum + day.deliveryTotal, 0);
@@ -367,6 +374,7 @@ export default function EarningsScreen() {
                       <Text style={styles.daySubtitle}>
                         {day.deliveries.length} {day.deliveries.length === 1 ? 'entrega' : 'entregas'}
                         {day.dailyRate ? ` · diária ${formatMoney(day.dailyRate)}` : ''}
+                        {day.workShifts.length ? ` · ${day.workShifts.length} turno(s): ${day.workShifts.map((shift) => shift.profileName).join(', ')}` : ''}
                       </Text>
                     </View>
                     <Text style={[styles.dayTotal, day.total === 0 && styles.muted]}>

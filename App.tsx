@@ -45,6 +45,7 @@ import {
   getDeliveries,
   getNeighborhoods,
   getSettings,
+  getWorkShifts,
   replaceBackupData,
   saveDelivery,
   saveDailyRateDate,
@@ -64,6 +65,7 @@ import {
   type AppSettings,
   type Delivery,
   type Neighborhood,
+  type WorkShift,
 } from './src/domain';
 import { useSelectedDate } from './src/context/SelectedDateContext';
 import { SlidingNumber } from './src/components/SlidingNumber';
@@ -133,6 +135,7 @@ export default function App({ screen }: { screen: Screen }) {
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [dailyRateDates, setDailyRateDates] = useState<string[]>([]);
+  const [workShifts, setWorkShifts] = useState<WorkShift[]>([]);
   const [settings, setSettings] = useState<AppSettings>(initialSettings);
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState('');
   const [neighborhoodName, setNeighborhoodName] = useState('');
@@ -147,16 +150,18 @@ export default function App({ screen }: { screen: Screen }) {
   const weekEnd = addDays(weekStart, 6);
 
   const refresh = useCallback(async () => {
-    const [neighborhoodData, deliveryData, dailyRateDateData, settingsData] = await Promise.all([
+    const [neighborhoodData, deliveryData, dailyRateDateData, workShiftData, settingsData] = await Promise.all([
       getNeighborhoods(),
       getDeliveries(weekStart, weekEnd),
       getDailyRateDates(weekStart, weekEnd),
+      getWorkShifts(weekStart, weekEnd),
       getSettings(),
     ]);
     neighborhoodData.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     setNeighborhoods(neighborhoodData);
     setDeliveries(deliveryData);
     setDailyRateDates(dailyRateDateData);
+    setWorkShifts(workShiftData);
     setSettings(settingsData);
     setDailyRateText((settingsData.dailyRateCents / 100).toFixed(2).replace('.', ','));
     setLoadError(null);
@@ -182,14 +187,25 @@ export default function App({ screen }: { screen: Screen }) {
   }
 
   const selectedDeliveries = useMemo(
-    () => deliveries.filter((delivery) => delivery.date === selectedDate),
+    () => deliveries.filter((delivery) => delivery.date === selectedDate && !delivery.shiftId),
     [deliveries, selectedDate],
   );
+  const selectedDayDeliveryCount = deliveries.filter((delivery) => delivery.date === selectedDate).length;
   const deliveryTotal = selectedDeliveries.reduce((sum, delivery) => sum + delivery.priceCents, 0);
   const selectedDailyRateIncluded = dailyRateDates.includes(selectedDate);
-  const totalWithDailyRate = deliveryTotal + (selectedDailyRateIncluded ? settings.dailyRateCents : 0);
+  const selectedShiftIds = new Set(workShifts.filter((shift) => shift.date === selectedDate).map((shift) => shift.id));
+  const selectedFreelancerTotal = workShifts
+    .filter((shift) => shift.date === selectedDate)
+    .reduce((sum, shift) => sum + shift.dailyRateCents, 0)
+    + deliveries
+      .filter((delivery) => delivery.shiftId && selectedShiftIds.has(delivery.shiftId))
+      .reduce((sum, delivery) => sum + delivery.priceCents, 0);
+  const totalWithDailyRate = deliveryTotal
+    + (selectedDailyRateIncluded ? settings.dailyRateCents : 0)
+    + selectedFreelancerTotal;
   const weeklyTotal = deliveries.reduce((sum, delivery) => sum + delivery.priceCents, 0)
-    + settings.dailyRateCents * dailyRateDates.filter((date) => date >= weekStart && date <= weekEnd).length;
+    + settings.dailyRateCents * dailyRateDates.filter((date) => date >= weekStart && date <= weekEnd).length
+    + workShifts.reduce((sum, shift) => sum + shift.dailyRateCents, 0);
   const selectedNeighborhood = neighborhoods.find((item) => item.id === selectedNeighborhoodId);
 
   function onDateChange(event: DateTimePickerEvent, date?: Date) {
@@ -428,7 +444,9 @@ export default function App({ screen }: { screen: Screen }) {
                 const dayTotal = deliveries
                   .filter((delivery) => delivery.date === date)
                   .reduce((sum, delivery) => sum + delivery.priceCents, 0)
-                  + (dailyRateDates.includes(date) ? settings.dailyRateCents : 0);
+                  + (dailyRateDates.includes(date) ? settings.dailyRateCents : 0)
+                  + workShifts.filter((shift) => shift.date === date)
+                    .reduce((sum, shift) => sum + shift.dailyRateCents, 0);
                 const active = date === selectedDate;
                 return (
                   <Pressable
@@ -467,13 +485,30 @@ export default function App({ screen }: { screen: Screen }) {
               </View>
               <Text style={styles.hint}>Ative somente nos dias trabalhados. A diária será somada aos totais deste dia e da semana.</Text>
             </Panel>
+            <Panel>
+              <View style={styles.sectionHeader}>
+                <Heading icon={Banknote}>Turnos freelancer</Heading>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.navigate('/freelancer')}
+                  style={styles.smallButton}
+                >
+                  <Text style={styles.smallButtonText}>Gerenciar</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.hint}>
+                {workShifts.filter((shift) => shift.date === selectedDate).length
+                  ? `${workShifts.filter((shift) => shift.date === selectedDate).length} turno(s) registrado(s); ganhos incluídos nos totais.`
+                  : 'Registre um ou mais locais de trabalho na aba Freelancer.'}
+              </Text>
+            </Panel>
 
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Entregas realizadas</Text>
                 <SlidingNumber
-                  value={selectedDeliveries.length}
-                  text={String(selectedDeliveries.length)}
+                  value={selectedDayDeliveryCount}
+                  text={String(selectedDayDeliveryCount)}
                   style={styles.statValue}
                 />
               </View>
