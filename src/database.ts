@@ -59,6 +59,16 @@ async function database(): Promise<SQLiteDatabase> {
           `);
         });
       }
+      if ((version?.user_version ?? 0) < 2) {
+        await db.withTransactionAsync(async () => {
+          await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS daily_rate_dates (
+              date_key TEXT PRIMARY KEY NOT NULL
+            );
+            PRAGMA user_version = 2;
+          `);
+        });
+      }
       await db.runAsync(
         'INSERT OR IGNORE INTO settings (id, daily_rate_cents, include_daily_rate) VALUES (1, 0, 0)',
       );
@@ -103,6 +113,16 @@ export async function getDeliveries(startDate: string, endDate: string): Promise
   return rows.map(mapDelivery);
 }
 
+export async function getDailyRateDates(startDate: string, endDate: string): Promise<string[]> {
+  const db = await database();
+  const rows = await db.getAllAsync<{ date_key: string }>(
+    'SELECT date_key FROM daily_rate_dates WHERE date_key BETWEEN ? AND ? ORDER BY date_key',
+    startDate,
+    endDate,
+  );
+  return rows.map((row) => row.date_key);
+}
+
 export async function getSettings(): Promise<AppSettings> {
   const db = await database();
   const row = await db.getFirstAsync<SettingsRow>('SELECT * FROM settings WHERE id = 1');
@@ -114,12 +134,13 @@ export async function getSettings(): Promise<AppSettings> {
 }
 
 export async function getBackupData(): Promise<BackupData> {
-  const [neighborhoods, deliveries, settings] = await Promise.all([
+  const [neighborhoods, deliveries, dailyRateDates, settings] = await Promise.all([
     getNeighborhoods(),
     getDeliveries('0000-01-01', '9999-12-31'),
+    getDailyRateDates('0000-01-01', '9999-12-31'),
     getSettings(),
   ]);
-  return { neighborhoods, deliveries, settings };
+  return { neighborhoods, deliveries, dailyRateDates, settings };
 }
 
 export async function saveNeighborhood(neighborhood: Neighborhood): Promise<void> {
@@ -154,6 +175,15 @@ export async function saveDelivery(delivery: Delivery): Promise<void> {
   );
 }
 
+export async function saveDailyRateDate(date: string, included: boolean): Promise<void> {
+  const db = await database();
+  if (included) {
+    await db.runAsync('INSERT OR IGNORE INTO daily_rate_dates (date_key) VALUES (?)', date);
+  } else {
+    await db.runAsync('DELETE FROM daily_rate_dates WHERE date_key = ?', date);
+  }
+}
+
 export async function deleteDelivery(id: string): Promise<void> {
   const db = await database();
   await db.runAsync('DELETE FROM deliveries WHERE id = ?', id);
@@ -178,6 +208,7 @@ export async function replaceBackupData(data: BackupData): Promise<void> {
   const db = await database();
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM deliveries');
+    await db.runAsync('DELETE FROM daily_rate_dates');
     await db.runAsync('DELETE FROM neighborhoods');
     for (const neighborhood of data.neighborhoods) {
       await db.runAsync(
@@ -200,6 +231,9 @@ export async function replaceBackupData(data: BackupData): Promise<void> {
         delivery.time,
         delivery.createdAt,
       );
+    }
+    for (const date of data.dailyRateDates) {
+      await db.runAsync('INSERT INTO daily_rate_dates (date_key) VALUES (?)', date);
     }
     await db.runAsync(
       'UPDATE settings SET daily_rate_cents = ?, include_daily_rate = ? WHERE id = 1',

@@ -22,6 +22,7 @@ export type AppSettings = {
 export type BackupData = {
   neighborhoods: Neighborhood[];
   deliveries: Delivery[];
+  dailyRateDates: string[];
   settings: AppSettings;
 };
 
@@ -159,10 +160,29 @@ export function parseLegacyBackup(json: string): BackupData {
   if (parsed.includeDailyRate !== undefined && typeof parsed.includeDailyRate !== 'boolean') {
     throw new Error('A configuração "includeDailyRate" é inválida.');
   }
+  if (parsed.dailyRateDates !== undefined && !Array.isArray(parsed.dailyRateDates)) {
+    throw new Error('A lista de dias com diária é inválida.');
+  }
+  const dailyRateDates = (parsed.dailyRateDates ?? []).map((value, index) => {
+    const date = requiredText(value, `dailyRateDates[${index}]`);
+    const parsedDate = dateFromKey(date);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      || Number.isNaN(parsedDate.getTime())
+      || todayKey(parsedDate) !== date
+    ) {
+      throw new Error(`Data inválida na diária ${index + 1}.`);
+    }
+    return date;
+  });
+  if (new Set(dailyRateDates).size !== dailyRateDates.length) {
+    throw new Error('A lista de dias com diária contém datas duplicadas.');
+  }
 
   return {
     neighborhoods,
     deliveries,
+    dailyRateDates,
     settings: {
       dailyRateCents,
       includeDailyRate: parsed.includeDailyRate === true,
@@ -188,5 +208,6 @@ export function serializeLegacyBackup(data: BackupData): string {
     })),
     dailyRate: data.settings.dailyRateCents / 100,
     includeDailyRate: data.settings.includeDailyRate,
+    dailyRateDates: data.dailyRateDates,
   }, null, 2);
 }

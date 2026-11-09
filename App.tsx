@@ -41,11 +41,13 @@ import {
   deleteDelivery,
   deleteNeighborhood,
   getBackupData,
+  getDailyRateDates,
   getDeliveries,
   getNeighborhoods,
   getSettings,
   replaceBackupData,
   saveDelivery,
+  saveDailyRateDate,
   saveNeighborhood,
   saveSettings,
 } from './src/database';
@@ -64,6 +66,7 @@ import {
   type Neighborhood,
 } from './src/domain';
 import { useSelectedDate } from './src/context/SelectedDateContext';
+import { SlidingNumber } from './src/components/SlidingNumber';
 
 type Screen = 'deliveries' | 'neighborhoods';
 
@@ -129,6 +132,7 @@ export default function App({ screen }: { screen: Screen }) {
   const { selectedDate, setSelectedDate } = useSelectedDate();
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [dailyRateDates, setDailyRateDates] = useState<string[]>([]);
   const [settings, setSettings] = useState<AppSettings>(initialSettings);
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState('');
   const [neighborhoodName, setNeighborhoodName] = useState('');
@@ -143,14 +147,16 @@ export default function App({ screen }: { screen: Screen }) {
   const weekEnd = addDays(weekStart, 6);
 
   const refresh = useCallback(async () => {
-    const [neighborhoodData, deliveryData, settingsData] = await Promise.all([
+    const [neighborhoodData, deliveryData, dailyRateDateData, settingsData] = await Promise.all([
       getNeighborhoods(),
       getDeliveries(weekStart, weekEnd),
+      getDailyRateDates(weekStart, weekEnd),
       getSettings(),
     ]);
     neighborhoodData.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     setNeighborhoods(neighborhoodData);
     setDeliveries(deliveryData);
+    setDailyRateDates(dailyRateDateData);
     setSettings(settingsData);
     setDailyRateText((settingsData.dailyRateCents / 100).toFixed(2).replace('.', ','));
     setLoadError(null);
@@ -180,9 +186,10 @@ export default function App({ screen }: { screen: Screen }) {
     [deliveries, selectedDate],
   );
   const deliveryTotal = selectedDeliveries.reduce((sum, delivery) => sum + delivery.priceCents, 0);
-  const totalWithDailyRate = deliveryTotal + (settings.includeDailyRate ? settings.dailyRateCents : 0);
+  const selectedDailyRateIncluded = dailyRateDates.includes(selectedDate);
+  const totalWithDailyRate = deliveryTotal + (selectedDailyRateIncluded ? settings.dailyRateCents : 0);
   const weeklyTotal = deliveries.reduce((sum, delivery) => sum + delivery.priceCents, 0)
-    + (settings.includeDailyRate ? settings.dailyRateCents * 7 : 0);
+    + settings.dailyRateCents * dailyRateDates.filter((date) => date >= weekStart && date <= weekEnd).length;
   const selectedNeighborhood = neighborhoods.find((item) => item.id === selectedNeighborhoodId);
 
   function onDateChange(event: DateTimePickerEvent, date?: Date) {
@@ -254,6 +261,13 @@ export default function App({ screen }: { screen: Screen }) {
     await saveSettings(next);
     setSettings(next);
     setDailyRateText((dailyRateCents / 100).toFixed(2).replace('.', ','));
+  }
+
+  async function changeDailyRateForDate(date: string, included: boolean) {
+    await saveDailyRateDate(date, included);
+    setDailyRateDates((current) => included
+      ? current.includes(date) ? current : [...current, date]
+      : current.filter((item) => item !== date));
   }
 
   function confirmDeleteDelivery(delivery: Delivery) {
@@ -386,7 +400,7 @@ export default function App({ screen }: { screen: Screen }) {
           <>
             <View style={styles.weekSummary}>
               <Text style={styles.weekTotalLabel}>Total da semana</Text>
-              <Text style={styles.weekTotal}>{formatMoney(weeklyTotal)}</Text>
+              <SlidingNumber value={weeklyTotal} text={formatMoney(weeklyTotal)} style={styles.weekTotal} />
             </View>
             <View style={styles.weekHeader}>
               <View style={styles.weekTitle}>
@@ -414,7 +428,7 @@ export default function App({ screen }: { screen: Screen }) {
                 const dayTotal = deliveries
                   .filter((delivery) => delivery.date === date)
                   .reduce((sum, delivery) => sum + delivery.priceCents, 0)
-                  + (settings.includeDailyRate ? settings.dailyRateCents : 0);
+                  + (dailyRateDates.includes(date) ? settings.dailyRateCents : 0);
                 const active = date === selectedDate;
                 return (
                   <Pressable
@@ -430,20 +444,46 @@ export default function App({ screen }: { screen: Screen }) {
                     <Text style={[styles.weekdayNumber, active && styles.activeText]}>
                       {dateFromKey(date).getDate().toString().padStart(2, '0')}
                     </Text>
-                    <Text style={[styles.weekdayTotal, active && styles.activeText]}>{formatMoney(dayTotal)}</Text>
+                    <SlidingNumber
+                      value={dayTotal}
+                      text={formatMoney(dayTotal)}
+                      style={[styles.weekdayTotal, active && styles.activeText]}
+                    />
                   </Pressable>
                 );
               })}
             </ScrollView>
 
+            <Panel>
+              <View style={styles.switchRow}>
+                <Text style={styles.switchLabel}>Considerar diária neste dia</Text>
+                <Switch
+                  accessibilityLabel="Considerar diária neste dia"
+                  value={selectedDailyRateIncluded}
+                  onValueChange={(included) => void run(() => changeDailyRateForDate(selectedDate, included))}
+                  trackColor={{ false: '#34445b', true: colors.green }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+              <Text style={styles.hint}>Ative somente nos dias trabalhados. A diária será somada aos totais deste dia e da semana.</Text>
+            </Panel>
+
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Entregas realizadas</Text>
-                <Text style={styles.statValue}>{selectedDeliveries.length}</Text>
+                <SlidingNumber
+                  value={selectedDeliveries.length}
+                  text={String(selectedDeliveries.length)}
+                  style={styles.statValue}
+                />
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Total recebido</Text>
-                <Text style={[styles.statValue, styles.moneyText]}>{formatMoney(totalWithDailyRate)}</Text>
+                <SlidingNumber
+                  value={totalWithDailyRate}
+                  text={formatMoney(totalWithDailyRate)}
+                  style={[styles.statValue, styles.moneyText]}
+                />
               </View>
             </View>
 
@@ -587,20 +627,7 @@ export default function App({ screen }: { screen: Screen }) {
                 placeholderTextColor={colors.muted}
                 style={styles.input}
               />
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>Somar a diária ao total recebido</Text>
-                <Switch
-                  value={settings.includeDailyRate}
-                  onValueChange={(includeDailyRate) => void run(async () => {
-                    const next = { ...settings, includeDailyRate };
-                    await saveSettings(next);
-                    setSettings(next);
-                  })}
-                  trackColor={{ false: '#34445b', true: colors.green }}
-                  thumbColor="#ffffff"
-                />
-              </View>
-              <Text style={styles.hint}>A diária configurada é somada uma vez ao total de cada dia, mesmo sem entregas.</Text>
+              <Text style={styles.hint}>A diária só entra nos totais dos dias em que você ativar “Considerar diária neste dia”.</Text>
             </Panel>
 
             <Panel>

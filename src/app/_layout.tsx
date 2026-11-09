@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Bike, MapPin } from 'lucide-react-native';
+import { Banknote, Bike, MapPin } from 'lucide-react-native';
 import { SelectedDateProvider } from '../context/SelectedDateContext';
 
 export default function RootLayout() {
@@ -32,6 +32,13 @@ export default function RootLayout() {
           options={{
             title: 'Bairros',
             tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
+          }}
+        />
+        <Tabs.Screen
+          name="earnings"
+          options={{
+            title: 'Ganhos',
+            tabBarIcon: ({ color, size }) => <Banknote color={color} size={size} />,
           }}
         />
       </Tabs>
